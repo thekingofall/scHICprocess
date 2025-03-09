@@ -22,17 +22,20 @@
 #   --JuicerTools <路径>    Juicer_tools.jar路径（默认: /home/maolp/mao/Biosoft/juicer_tools_1.22.01.jar）
 #   --GenomeSizes <路径>    hg19.sizes文件路径（默认: /home/maolp/mao/Ref/AllnewstarRef/Homo/HG19/hg19.sizes）
 #   --GenomeBed <路径>      hg19mboi.bed文件路径（默认: /home/maolp/mao/Ref/AllnewstarRef/Homo/HG19/HG19mboi.bed）
+#   --remove-large-files    删除大型输出文件(>2GB)（默认: 启用）
+#   --keep-large-files      保留大型输出文件（默认: 禁用）
 #   -h                      显示帮助信息
 # =============================================================================
 
 # 默认参数
-Project_name="scC-HiCMOBI"
+Project_name="scC-HiCMOBI_$(date +%Y%m%d)"
 input_dir="Run1_fastq"
 trim_dir="Run2_trim"
 output_dir="Run3_hic"
 log_dir="Run0_log"
 cpu=10
 conda_env="hicpro3"
+remove_large_files=true
 
 # 默认软件路径
 default_HiC_Pro_path="/home/maolp/mao/Biosoft/HiC-Pro-3.1.0/bin/HiC-Pro"
@@ -75,6 +78,8 @@ usage() {
     echo "  --JuicerTools <路径>    Juicer_tools.jar路径（默认: $default_JuicerTools_path）"
     echo "  --GenomeSizes <路径>    hg19.sizes文件路径（默认: $default_GenomeSizes_path）"
     echo "  --GenomeBed <路径>      hg19mboi.bed文件路径（默认: $default_GenomeBed_path）"
+    echo "  --remove-large-files    删除大型输出文件(>2GB)（默认: 启用）"
+    echo "  --keep-large-files      保留大型输出文件（默认: 禁用）"
     echo "  -h                      显示此帮助信息"
     echo
     exit 1
@@ -137,6 +142,12 @@ while getopts ":n:p:i:t:o:j:u:e:-:" opt; do
                     ;;
                 GenomeBed)
                     GenomeBed_path="${!OPTIND}"; OPTIND=$((OPTIND +1))
+                    ;;
+                remove-large-files)
+                    remove_large_files=true
+                    ;;
+                keep-large-files)
+                    remove_large_files=false
                     ;;
                 *)
                     echo "无效的选项 --${OPTARG}" >&2
@@ -332,6 +343,22 @@ mkdir -p "$log_dir"
 
     # 返回项目根目录
     cd ../../../..
+
+    # 如果启用了删除大文件选项，则删除大于2GB的文件
+    if [[ "$remove_large_files" = true ]]; then
+        echo "正在删除大型输出文件（>2GB）..."
+        large_files=$(find "${output_dir}" -type f -size +2G)
+        if [[ -n "$large_files" ]]; then
+            echo "以下大型文件将被删除:"
+            echo "$large_files"
+            find "${output_dir}" -type f -size +2G -delete || { echo "警告: 删除大型文件失败"; }
+            echo "大型文件已删除"
+        else
+            echo "未找到需要删除的大型文件"
+        fi
+    else
+        echo "已选择保留所有输出文件"
+    fi
 
     # 发送完成邮件
     echo "发送完成邮件..."
